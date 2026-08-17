@@ -5,6 +5,7 @@ export type Country = {
   market: number;
   customers: number;
   outOfBundle: number;
+  oobMinutesPerLine: number;
   score: number;
   rating: number;
   priority: "Alta" | "Media" | "Baja";
@@ -18,6 +19,7 @@ export const countries: Country[] = [
     market: 207135,
     customers: 2068,
     outOfBundle: 5200,
+    oobMinutesPerLine: 5.89,
     score: 91,
     rating: 5,
     priority: "Alta",
@@ -29,6 +31,7 @@ export const countries: Country[] = [
     market: 1165955,
     customers: 319506,
     outOfBundle: 11400,
+    oobMinutesPerLine: 10.18,
     score: 88,
     rating: 5,
     priority: "Alta",
@@ -40,6 +43,7 @@ export const countries: Country[] = [
     market: 162633,
     customers: 31402,
     outOfBundle: 1800,
+    oobMinutesPerLine: 13.44,
     score: 74,
     rating: 4,
     priority: "Media",
@@ -51,6 +55,7 @@ export const countries: Country[] = [
     market: 252290,
     customers: 6932,
     outOfBundle: 2100,
+    oobMinutesPerLine: 9.38,
     score: 66,
     rating: 3,
     priority: "Media",
@@ -62,6 +67,7 @@ export const countries: Country[] = [
     market: 109523,
     customers: 23979,
     outOfBundle: 950,
+    oobMinutesPerLine: 8.86,
     score: 58,
     rating: 3,
     priority: "Baja",
