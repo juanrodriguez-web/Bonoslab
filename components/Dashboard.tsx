@@ -3,12 +3,7 @@
 import { useMemo, useState } from "react";
 import { calculateScenario } from "@/lib/calculations";
 import { countries } from "@/lib/countries";
-
-const navItems = [
-  ["▦", "Dashboard"], ["◉", "Mercado"], ["▣", "Portfolio"], ["▤", "Business Case"],
-  ["▥", "Simulador"], ["✧", "Decision Lab"], ["⌁", "Escenarios"], ["▧", "Informes"],
-  ["◫", "Datos"], ["⚙", "Administración"],
-];
+import Shell from "@/components/Shell";
 
 function money(value: number, digits = 0) {
   return new Intl.NumberFormat("es-ES", { style: "currency", currency: "EUR", maximumFractionDigits: digits }).format(value);
@@ -59,21 +54,11 @@ export default function Dashboard() {
   }
 
   return (
-    <div className="shell dark-shell">
-      <aside className="sidebar">
-        <div className="brand-wrap"><div className="vodafone-mark"><span /></div><div><strong><i>Bonos</i>Lab</strong><small>Decision Intelligence</small></div></div>
-        <nav>{navItems.map(([icon, item], index) => <a key={item} className={index === 0 ? "active" : ""}><span>{icon}</span>{item}{item === "Decision Lab" && <em>NUEVO</em>}</a>)}</nav>
-        <div className="sidebar-spacer" />
-        <div className="dataset-card"><div><span>Dataset activo</span><b>2026.08.05-R01</b></div><i className="status-dot" /><hr/><div><span>Última actualización</span><b>05/08/2026 19:18</b></div></div>
-        <footer><span>© Vodafone España</span><span>v1.1.0</span></footer>
-      </aside>
-
-      <main className="content">
-        <header className="topbar">
-          <div className="title-block"><p className="eyebrow">Decision Lab · Prepago Internacional</p><h1>Buenos días, Javier <span>👋</span></h1><p>Analiza el mercado, simula escenarios y decide con datos qué bonos merece la pena desarrollar.</p></div>
-          <div className="header-actions"><button className="secondary">Vista ejecutiva⌄</button><button className="notification">♧<b>3</b></button><button className="avatar">JR</button></div>
-        </header>
-
+    <Shell
+      eyebrow="Decision Lab · Prepago Internacional"
+      title={<>Buenos días, Javier <span>👋</span></>}
+      subtitle="Analiza el mercado, simula escenarios y decide con datos qué bonos merece la pena desarrollar."
+    >
         <section className="kpis">
           <article><span>MERCADO POTENCIAL</span><strong>7,42 M <em>↑ 2,3%</em></strong><small>vs. actualización anterior</small><Sparkline tone="red" /></article>
           <article><span>CLIENTES VODAFONE</span><strong>512 K <em>↑ 1,1%</em></strong><small>6,9% penetración media</small><Sparkline tone="purple" /></article>
@@ -167,7 +152,6 @@ export default function Dashboard() {
             <div className="recommendation"><span>◎</span><div><small>RECOMENDACIÓN AUTOMÁTICA</small><strong>{recommendation}</strong><p>Resultado calculado con reglas trazables de IA.</p></div><b>›</b></div>
           </aside>
         </div>
-      </main>
-    </div>
+    </Shell>
   );
 }
