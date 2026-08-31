@@ -1,10 +1,14 @@
 "use client";
 
+import Shell from "@/components/Shell";
+
 export default function AdministracionPage() {
   return (
-    <div style={{ padding: "2rem" }}>
-      <h1>Administración</h1>
-      <p>Panel de administración y configuración</p>
-    </div>
+    <Shell eyebrow="Próximamente" title="Administración" subtitle="Panel de administración y configuración">
+      <section className="panel placeholder-panel">
+        <h2>En construcción</h2>
+        <p>Esta sección estará disponible en una próxima versión de Productlab Prepago.</p>
+      </section>
+    </Shell>
   );
 }

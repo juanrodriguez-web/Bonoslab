@@ -1,10 +1,14 @@
 "use client";
 
+import Shell from "@/components/Shell";
+
 export default function MercadoPage() {
   return (
-    <div style={{ padding: "2rem" }}>
-      <h1>Mercado</h1>
-      <p>Análisis de mercado internacional de prepago</p>
-    </div>
+    <Shell eyebrow="Próximamente" title="Mercado" subtitle="Análisis de mercado internacional de prepago">
+      <section className="panel placeholder-panel">
+        <h2>En construcción</h2>
+        <p>Esta sección estará disponible en una próxima versión de Productlab Prepago.</p>
+      </section>
+    </Shell>
   );
 }

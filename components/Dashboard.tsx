@@ -3,12 +3,7 @@
 import { useMemo, useState } from "react";
 import { calculateScenario } from "@/lib/calculations";
 import { countries } from "@/lib/countries";
-
-const navItems = [
-  ["▦", "Dashboard"], ["◉", "Mercado"], ["▣", "Portfolio"], ["▤", "Business Case"],
-  ["▥", "Simulador"], ["✧", "Decision Lab"], ["⌁", "Escenarios"], ["▧", "Informes"],
-  ["◫", "Datos"], ["⚙", "Administración"],
-];
+import Shell from "@/components/Shell";
 
 function money(value: number, digits = 0) {
   return new Intl.NumberFormat("es-ES", { style: "currency", currency: "EUR", maximumFractionDigits: digits }).format(value);
@@ -40,29 +35,30 @@ export default function Dashboard() {
   const [wholesale, setWholesale] = useState(0.018);
   const [targetCustomers, setTargetCustomers] = useState(3100);
   const [capex, setCapex] = useState(50000);
+  const [compareList, setCompareList] = useState<string[]>([]);
+  const [showComparePicker, setShowComparePicker] = useState(false);
 
   const selected = countries.find((country) => country.name === selectedCountry) ?? countries[0];
   const result = useMemo(() => calculateScenario({ price, minutes, wholesaleCostPerMinute: wholesale, expectedUsagePct: usage, targetCustomers, capex }), [price, minutes, wholesale, usage, targetCustomers, capex]);
   const recommendation = result.unitMargin <= 0 ? "NO DESARROLLAR" : result.paybackMonths !== null && result.paybackMonths <= 12 && result.marginPct >= 45 ? "PRIORIDAD ALTA" : result.paybackMonths !== null && result.paybackMonths <= 24 ? "MANTENER EN ANÁLISIS" : "BACKLOG";
 
   function reset() { setPrice(5); setMinutes(100); setUsage(42); setWholesale(0.018); setTargetCustomers(3100); setCapex(50000); setTab("params"); }
+  function countryMetrics(country: (typeof countries)[number]) {
+    const penetration = country.market > 0 ? (country.customers / country.market) * 100 : 0;
+    const margin = result.unitMargin * Math.max(country.outOfBundle, 1) * 12;
+    const roi = capex > 0 ? (margin / capex) * 100 : 0;
+    return { penetration, margin, roi };
+  }
+  function toggleCompare(name: string) {
+    setCompareList((list) => (list.includes(name) ? list.filter((n) => n !== name) : [...list, name]));
+  }
 
   return (
-    <div className="shell dark-shell">
-      <aside className="sidebar">
-        <div className="brand-wrap"><div className="vodafone-mark"><span /></div><div><strong><i>Bonos</i>Lab</strong><small>Decision Intelligence</small></div></div>
-        <nav>{navItems.map(([icon, item], index) => <a key={item} className={index === 0 ? "active" : ""}><span>{icon}</span>{item}{item === "Decision Lab" && <em>NUEVO</em>}</a>)}</nav>
-        <div className="sidebar-spacer" />
-        <div className="dataset-card"><div><span>Dataset activo</span><b>2026.08.05-R01</b></div><i className="status-dot" /><hr/><div><span>Última actualización</span><b>05/08/2026 19:18</b></div></div>
-        <footer><span>© Vodafone España</span><span>v1.1.0</span></footer>
-      </aside>
-
-      <main className="content">
-        <header className="topbar">
-          <div className="title-block"><p className="eyebrow">Decision Lab · Prepago Internacional</p><h1>Buenos días, Javier <span>👋</span></h1><p>Analiza el mercado, simula escenarios y decide con datos qué bonos merece la pena desarrollar.</p></div>
-          <div className="header-actions"><button className="secondary">Vista ejecutiva⌄</button><button className="notification">♧<b>3</b></button><button className="avatar">JR</button></div>
-        </header>
-
+    <Shell
+      eyebrow="Decision Lab · Prepago Internacional"
+      title={<>Buenos días, Javier <span>👋</span></>}
+      subtitle="Analiza el mercado, simula escenarios y decide con datos qué bonos merece la pena desarrollar."
+    >
         <section className="kpis">
           <article><span>MERCADO POTENCIAL</span><strong>7,42 M <em>↑ 2,3%</em></strong><small>vs. actualización anterior</small><Sparkline tone="red" /></article>
           <article><span>CLIENTES VODAFONE</span><strong>512 K <em>↑ 1,1%</em></strong><small>6,9% penetración media</small><Sparkline tone="purple" /></article>
@@ -76,9 +72,7 @@ export default function Dashboard() {
             <div className="panel-toolbar"><div className="section-title"><h2>PORTFOLIO <span>· TOP PAÍSES POR POTENCIAL</span></h2><i>ⓘ</i></div><div className="toolbar-actions"><div className="segmented"><button className="active">Top 5</button><button>Todos los países</button></div><button className="map-button">◉ Ver en mapa</button></div></div>
             <div className="country-grid">
               {countries.map((country) => {
-                const penetration = country.market > 0 ? (country.customers / country.market) * 100 : 0;
-                const margin = result.unitMargin * Math.max(country.outOfBundle, 1) * 12;
-                const roi = capex > 0 ? (margin / capex) * 100 : 0;
+                const { penetration, margin, roi } = countryMetrics(country);
                 const active = country.name === selectedCountry;
                 return <article key={country.name} className={`country-card ${active ? "selected" : ""}`}>
                   <div className="country-card-head"><span className="flag-box">{country.flag}</span><div><h3>{country.name}</h3><div className="stars">{"★".repeat(country.rating)}<span>{"★".repeat(5-country.rating)}</span></div></div><b className={`score score-${country.priority.toLowerCase()}`}>{country.score}</b></div>
@@ -87,8 +81,56 @@ export default function Dashboard() {
                   <button onClick={() => setSelectedCountry(country.name)} className={active ? "primary-card" : "ghost-card"}>Analizar país <span>→</span></button>
                 </article>;
               })}
-              <article className="country-card add-card"><div className="plus">＋</div><b>Añadir a comparación</b><p>Selecciona varios países para comparar escenarios.</p></article>
+              <article className="country-card add-card">
+                {showComparePicker ? (
+                  <div className="compare-picker">
+                    <b>Selecciona países</b>
+                    <ul>
+                      {countries.map((country) => (
+                        <li key={country.name}>
+                          <label>
+                            <input type="checkbox" checked={compareList.includes(country.name)} onChange={() => toggleCompare(country.name)} />
+                            {country.flag} {country.name}
+                          </label>
+                        </li>
+                      ))}
+                    </ul>
+                    <button type="button" onClick={() => setShowComparePicker(false)}>Listo</button>
+                  </div>
+                ) : (
+                  <button type="button" className="add-card-trigger" onClick={() => setShowComparePicker(true)}>
+                    <div className="plus">＋</div>
+                    <b>Añadir a comparación</b>
+                    <p>Selecciona varios países para comparar escenarios.</p>
+                  </button>
+                )}
+              </article>
             </div>
+            {compareList.length > 0 && (
+              <div className="compare-table-wrap">
+                <div className="compare-table-head"><h3>COMPARATIVA DE ESCENARIOS · {compareList.length} {compareList.length === 1 ? "país" : "países"}</h3><button type="button" onClick={() => setCompareList([])}>Limpiar comparación</button></div>
+                <table className="compare-table">
+                  <thead>
+                    <tr>
+                      <th>Métrica</th>
+                      {compareList.map((name) => (
+                        <th key={name}>{countries.find((c) => c.name === name)?.flag} {name}<button type="button" aria-label={`Quitar ${name}`} onClick={() => toggleCompare(name)}>×</button></th>
+                      ))}
+                    </tr>
+                  </thead>
+                  <tbody>
+                    <tr><td>Mercado potencial</td>{compareList.map((name) => <td key={name}>{number(countries.find((c) => c.name === name)!.market)}</td>)}</tr>
+                    <tr><td>Clientes Vodafone</td>{compareList.map((name) => <td key={name}>{number(countries.find((c) => c.name === name)!.customers)}</td>)}</tr>
+                    <tr><td>Penetración</td>{compareList.map((name) => <td key={name}>{pct(countryMetrics(countries.find((c) => c.name === name)!).penetration)}</td>)}</tr>
+                    <tr><td>Ingreso anual</td>{compareList.map((name) => <td key={name}>{money(countryMetrics(countries.find((c) => c.name === name)!).margin / .6)}</td>)}</tr>
+                    <tr><td>Margen anual</td>{compareList.map((name) => <td key={name}>{money(countryMetrics(countries.find((c) => c.name === name)!).margin)}</td>)}</tr>
+                    <tr><td>ROI</td>{compareList.map((name) => <td key={name}>{countryMetrics(countries.find((c) => c.name === name)!).roi.toFixed(0)}%</td>)}</tr>
+                    <tr><td>Score</td>{compareList.map((name) => <td key={name}>{countries.find((c) => c.name === name)!.score}</td>)}</tr>
+                    <tr><td>Prioridad</td>{compareList.map((name) => <td key={name}>{countries.find((c) => c.name === name)!.priority}</td>)}</tr>
+                  </tbody>
+                </table>
+              </div>
+            )}
             <div className="portfolio-insight"><span>▥</span><p><b>{selected.name}</b> es el país seleccionado para el análisis. ROI estimado <b>{capex > 0 ? ((result.annualMargin / capex) * 100).toFixed(0) : "0"}%</b> con recuperación de la inversión en <b>{result.paybackMonths?.toFixed(1) ?? "N/A"} meses</b>.</p><button>Ver análisis completo →</button></div>
 
             <div className="lower-grid">
@@ -110,7 +152,6 @@ export default function Dashboard() {
             <div className="recommendation"><span>◎</span><div><small>RECOMENDACIÓN AUTOMÁTICA</small><strong>{recommendation}</strong><p>Resultado calculado con reglas trazables de IA.</p></div><b>›</b></div>
           </aside>
         </div>
-      </main>
-    </div>
+    </Shell>
   );
 }

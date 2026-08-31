@@ -1,4 +1,4 @@
-# BonosLab v1.0
+# Productlab Prepago v1.0
 
 Herramienta interna de análisis para evaluar oportunidades de lanzamiento de bonos internacionales de prepago. Permite simular escenarios, visualizar carteras de países y obtener recomendaciones automáticas basadas en reglas trazables.
 
@@ -239,4 +239,4 @@ Interno. Solo para uso corporativo de Vodafone.
 
 **Versión:** 1.0.0  
 **Última actualización:** 2026-08-05  
-**Autor:** BonosLab Team
+**Autor:** Productlab Prepago Team

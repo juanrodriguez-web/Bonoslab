@@ -2,7 +2,7 @@ import type { Metadata } from "next";
 import "./globals.css";
 
 export const metadata: Metadata = {
-  title: "BonosLab | Decision Lab",
+  title: "Productlab Prepago | Decision Lab",
   description: "Herramienta interna para analizar oportunidades de bonos internacionales",
 };
 
