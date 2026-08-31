@@ -40,12 +40,23 @@ export default function Dashboard() {
   const [wholesale, setWholesale] = useState(0.018);
   const [targetCustomers, setTargetCustomers] = useState(3100);
   const [capex, setCapex] = useState(50000);
+  const [compareList, setCompareList] = useState<string[]>([]);
+  const [showComparePicker, setShowComparePicker] = useState(false);
 
   const selected = countries.find((country) => country.name === selectedCountry) ?? countries[0];
   const result = useMemo(() => calculateScenario({ price, minutes, wholesaleCostPerMinute: wholesale, expectedUsagePct: usage, targetCustomers, capex }), [price, minutes, wholesale, usage, targetCustomers, capex]);
   const recommendation = result.unitMargin <= 0 ? "NO DESARROLLAR" : result.paybackMonths !== null && result.paybackMonths <= 12 && result.marginPct >= 45 ? "PRIORIDAD ALTA" : result.paybackMonths !== null && result.paybackMonths <= 24 ? "MANTENER EN ANÁLISIS" : "BACKLOG";
 
   function reset() { setPrice(5); setMinutes(100); setUsage(42); setWholesale(0.018); setTargetCustomers(3100); setCapex(50000); setTab("params"); }
+  function countryMetrics(country: (typeof countries)[number]) {
+    const penetration = country.market > 0 ? (country.customers / country.market) * 100 : 0;
+    const margin = result.unitMargin * Math.max(country.outOfBundle, 1) * 12;
+    const roi = capex > 0 ? (margin / capex) * 100 : 0;
+    return { penetration, margin, roi };
+  }
+  function toggleCompare(name: string) {
+    setCompareList((list) => (list.includes(name) ? list.filter((n) => n !== name) : [...list, name]));
+  }
 
   return (
     <div className="shell dark-shell">
@@ -76,9 +87,7 @@ export default function Dashboard() {
             <div className="panel-toolbar"><div className="section-title"><h2>PORTFOLIO <span>· TOP PAÍSES POR POTENCIAL</span></h2><i>ⓘ</i></div><div className="toolbar-actions"><div className="segmented"><button className="active">Top 5</button><button>Todos los países</button></div><button className="map-button">◉ Ver en mapa</button></div></div>
             <div className="country-grid">
               {countries.map((country) => {
-                const penetration = country.market > 0 ? (country.customers / country.market) * 100 : 0;
-                const margin = result.unitMargin * Math.max(country.outOfBundle, 1) * 12;
-                const roi = capex > 0 ? (margin / capex) * 100 : 0;
+                const { penetration, margin, roi } = countryMetrics(country);
                 const active = country.name === selectedCountry;
                 return <article key={country.name} className={`country-card ${active ? "selected" : ""}`}>
                   <div className="country-card-head"><span className="flag-box">{country.flag}</span><div><h3>{country.name}</h3><div className="stars">{"★".repeat(country.rating)}<span>{"★".repeat(5-country.rating)}</span></div></div><b className={`score score-${country.priority.toLowerCase()}`}>{country.score}</b></div>
@@ -87,8 +96,56 @@ export default function Dashboard() {
                   <button onClick={() => setSelectedCountry(country.name)} className={active ? "primary-card" : "ghost-card"}>Analizar país <span>→</span></button>
                 </article>;
               })}
-              <article className="country-card add-card"><div className="plus">＋</div><b>Añadir a comparación</b><p>Selecciona varios países para comparar escenarios.</p></article>
+              <article className="country-card add-card">
+                {showComparePicker ? (
+                  <div className="compare-picker">
+                    <b>Selecciona países</b>
+                    <ul>
+                      {countries.map((country) => (
+                        <li key={country.name}>
+                          <label>
+                            <input type="checkbox" checked={compareList.includes(country.name)} onChange={() => toggleCompare(country.name)} />
+                            {country.flag} {country.name}
+                          </label>
+                        </li>
+                      ))}
+                    </ul>
+                    <button type="button" onClick={() => setShowComparePicker(false)}>Listo</button>
+                  </div>
+                ) : (
+                  <button type="button" className="add-card-trigger" onClick={() => setShowComparePicker(true)}>
+                    <div className="plus">＋</div>
+                    <b>Añadir a comparación</b>
+                    <p>Selecciona varios países para comparar escenarios.</p>
+                  </button>
+                )}
+              </article>
             </div>
+            {compareList.length > 0 && (
+              <div className="compare-table-wrap">
+                <div className="compare-table-head"><h3>COMPARATIVA DE ESCENARIOS · {compareList.length} {compareList.length === 1 ? "país" : "países"}</h3><button type="button" onClick={() => setCompareList([])}>Limpiar comparación</button></div>
+                <table className="compare-table">
+                  <thead>
+                    <tr>
+                      <th>Métrica</th>
+                      {compareList.map((name) => (
+                        <th key={name}>{countries.find((c) => c.name === name)?.flag} {name}<button type="button" aria-label={`Quitar ${name}`} onClick={() => toggleCompare(name)}>×</button></th>
+                      ))}
+                    </tr>
+                  </thead>
+                  <tbody>
+                    <tr><td>Mercado potencial</td>{compareList.map((name) => <td key={name}>{number(countries.find((c) => c.name === name)!.market)}</td>)}</tr>
+                    <tr><td>Clientes Vodafone</td>{compareList.map((name) => <td key={name}>{number(countries.find((c) => c.name === name)!.customers)}</td>)}</tr>
+                    <tr><td>Penetración</td>{compareList.map((name) => <td key={name}>{pct(countryMetrics(countries.find((c) => c.name === name)!).penetration)}</td>)}</tr>
+                    <tr><td>Ingreso anual</td>{compareList.map((name) => <td key={name}>{money(countryMetrics(countries.find((c) => c.name === name)!).margin / .6)}</td>)}</tr>
+                    <tr><td>Margen anual</td>{compareList.map((name) => <td key={name}>{money(countryMetrics(countries.find((c) => c.name === name)!).margin)}</td>)}</tr>
+                    <tr><td>ROI</td>{compareList.map((name) => <td key={name}>{countryMetrics(countries.find((c) => c.name === name)!).roi.toFixed(0)}%</td>)}</tr>
+                    <tr><td>Score</td>{compareList.map((name) => <td key={name}>{countries.find((c) => c.name === name)!.score}</td>)}</tr>
+                    <tr><td>Prioridad</td>{compareList.map((name) => <td key={name}>{countries.find((c) => c.name === name)!.priority}</td>)}</tr>
+                  </tbody>
+                </table>
+              </div>
+            )}
             <div className="portfolio-insight"><span>▥</span><p><b>{selected.name}</b> es el país seleccionado para el análisis. ROI estimado <b>{capex > 0 ? ((result.annualMargin / capex) * 100).toFixed(0) : "0"}%</b> con recuperación de la inversión en <b>{result.paybackMonths?.toFixed(1) ?? "N/A"} meses</b>.</p><button>Ver análisis completo →</button></div>
 
             <div className="lower-grid">
