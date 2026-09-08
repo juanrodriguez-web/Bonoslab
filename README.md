@@ -32,22 +32,26 @@ app/
   ├── layout.tsx          # Layout raíz con metadatos
   ├── page.tsx            # Página principal (importa Dashboard)
   ├── globals.css         # Estilos globales (diseño Vodafone)
-  ├── mercado/page.tsx    # Análisis de mercado
-  ├── portfolio/page.tsx  # Cartera de proyectos
-  ├── simulador/page.tsx  # Simulador de escenarios
-  ├── decision-lab/page.tsx # Laboratorio de decisiones
-  ├── business-case/page.tsx # Análisis de casos de negocio
-  ├── escenarios/page.tsx # Escenarios múltiples
-  ├── informes/page.tsx   # Generación de reportes
-  ├── datos/page.tsx      # Gestión de datos
-  └── administracion/page.tsx # Panel administrativo
+  ├── mercado/page.tsx    # Comparativa de mercado y penetración por país
+  ├── portfolio/page.tsx  # Ranking completo y ordenable de los 5 países
+  ├── simulador/page.tsx  # Simulador standalone con resultado completo
+  ├── decision-lab/page.tsx # Un bono aplicado a los 5 países, ranking por recomendación
+  ├── business-case/page.tsx # Caso de negocio detallado de un país (?country=)
+  ├── escenarios/page.tsx # Guardar/cargar/borrar escenarios (localStorage)
+  ├── informes/page.tsx   # Informe consolidado imprimible
+  ├── datos/page.tsx      # Dataset en crudo + estructura de importación futura
+  └── administracion/page.tsx # Fórmulas y reglas de recomendación documentadas
 
 components/
-  └── Dashboard.tsx       # Componente principal (cliente)
+  ├── Dashboard.tsx       # Contenido del dashboard principal (cliente)
+  ├── Shell.tsx           # Sidebar + topbar compartidos por todas las páginas
+  └── SliderField.tsx     # Slider reutilizado en simulador/business-case/decision-lab/informes/escenarios
 
 lib/
-  ├── calculations.ts     # Motor de cálculos (tipos + función pura)
-  └── countries.ts        # Datos de países (centralizado)
+  ├── calculations.ts     # Motor de cálculos (tipos + función pura + recomendación)
+  ├── countries.ts        # Datos de países (centralizado)
+  ├── scenarios.ts        # Persistencia de escenarios en localStorage
+  └── format.ts           # Formateadores compartidos (money/number/pct/fecha)
 ```
 
 ## 🎯 Funcionalidades v1
@@ -147,7 +151,22 @@ Inspirado en Vodafone:
 - Responsive para escritorio, tablet y móvil
 - Accesibilidad básica (contraste, semántica)
 
-## 🔄 Próximas fases (sin implementar v1)
+## ✅ Más allá del v1
+
+Implementado sobre la base del v1, usando siempre datos y fórmulas reales (nada hardcodeado ni decorativo):
+
+- **Business Case** (`/business-case?country=`) — caso de negocio completo de un país, con parámetros ajustables.
+- **Decision Lab** (`/decision-lab`) — un mismo diseño de bono aplicado a los 5 países, ranking por recomendación.
+- **Escenarios** (`/escenarios`) — guardar, cargar y borrar escenarios, persistidos en `localStorage` (sin backend).
+- **Simulador** (`/simulador`) — versión standalone con el desglose completo (incluye break-even e ingreso anual).
+- **Portfolio** (`/portfolio`) — ranking completo y ordenable de los 5 países.
+- **Mercado** (`/mercado`) — comparativa visual de mercado, penetración y consumo OOB.
+- **Informes** (`/informes`) — informe consolidado, imprimible/exportable a PDF con `window.print()`.
+- **Datos** (`/datos`) — dataset en crudo, más la estructura de importación futura documentada en la propia app.
+- **Administración** (`/administracion`) — fórmulas y reglas de recomendación documentadas en la propia app.
+- **Análisis de sensibilidad** (Dashboard) — mapa de calor real, ROI vs precio y utilización.
+
+## 🔄 Próximas fases (sin implementar)
 
 ### Importación de datos
 
@@ -172,13 +191,7 @@ Archivos esperados:
 - Consumo internacional (facturación)
 - Costes wholesale (procurement)
 
-### Análisis de sensibilidad
-
-Mapa de calor interactivo: ROI vs precio y utilización.
-
-### Escenarios guardados
-
-Almacenar y comparar múltiples simulaciones.
+(Estructura y dataset actual también visibles en `/datos` dentro de la propia app.)
 
 ## 📊 Datos actuales
 

@@ -1,29 +1,16 @@
 "use client";
 
-import { useMemo, useState } from "react";
-import { calculateScenario } from "@/lib/calculations";
+import { useEffect, useMemo, useState } from "react";
+import Link from "next/link";
+import { annualRoi, calculateScenario, getRecommendation, recommendationRank } from "@/lib/calculations";
 import { countries } from "@/lib/countries";
+import { listScenarios, type SavedScenario } from "@/lib/scenarios";
+import { money, number, pct, relativeDate } from "@/lib/format";
 import Shell from "@/components/Shell";
-
-function money(value: number, digits = 0) {
-  return new Intl.NumberFormat("es-ES", { style: "currency", currency: "EUR", maximumFractionDigits: digits }).format(value);
-}
-function number(value: number) { return new Intl.NumberFormat("es-ES").format(Math.round(value)); }
-function pct(value: number) { return `${value.toFixed(1).replace(".0", "")}%`; }
+import SliderField from "@/components/SliderField";
 
 function Sparkline({ tone = "red" }: { tone?: "red" | "purple" | "cyan" | "green" }) {
   return <svg className={`spark ${tone}`} viewBox="0 0 82 32" aria-hidden="true"><polyline points="2,27 14,20 24,23 35,12 46,18 58,7 69,11 80,2" /></svg>;
-}
-
-function SliderField({ label, value, min, max, step, suffix, onChange }: { label: string; value: number; min: number; max: number; step: number; suffix?: string; onChange: (value: number) => void; }) {
-  const progress = ((value - min) / (max - min)) * 100;
-  return (
-    <label className="slider-field">
-      <span><b>{label}</b><strong>{number(value)}{suffix ?? ""}</strong></span>
-      <input style={{ "--progress": `${progress}%` } as React.CSSProperties} type="range" min={min} max={max} step={step} value={value} onChange={(event) => onChange(Number(event.target.value))} />
-      <small><span>{number(min)}{suffix ?? ""}</span><span>{number(max)}{suffix ?? ""}</span></small>
-    </label>
-  );
 }
 
 export default function Dashboard() {
@@ -37,18 +24,58 @@ export default function Dashboard() {
   const [capex, setCapex] = useState(50000);
   const [compareList, setCompareList] = useState<string[]>([]);
   const [showComparePicker, setShowComparePicker] = useState(false);
+  const [savedScenarios, setSavedScenarios] = useState<SavedScenario[]>([]);
+
+  useEffect(() => { setSavedScenarios(listScenarios()); }, []);
 
   const selected = countries.find((country) => country.name === selectedCountry) ?? countries[0];
   const result = useMemo(() => calculateScenario({ price, minutes, wholesaleCostPerMinute: wholesale, expectedUsagePct: usage, targetCustomers, capex }), [price, minutes, wholesale, usage, targetCustomers, capex]);
-  const recommendation = result.unitMargin <= 0 ? "NO DESARROLLAR" : result.paybackMonths !== null && result.paybackMonths <= 12 && result.marginPct >= 45 ? "PRIORIDAD ALTA" : result.paybackMonths !== null && result.paybackMonths <= 24 ? "MANTENER EN ANÁLISIS" : "BACKLOG";
+  const recommendation = getRecommendation(result);
+
+  // Same bond design (price/minutes/usage/wholesale/capex) rolled out to each
+  // country's full current customer base -- an upper-bound portfolio view,
+  // independent of the "Clientes objetivo" slider used for the single
+  // selected country above.
+  const countryResults = useMemo(
+    () => countries.map((country) => ({
+      country,
+      penetration: country.market > 0 ? (country.customers / country.market) * 100 : 0,
+      // "Clientes objetivo" can't exceed a country's real customer base.
+      scenario: calculateScenario({ price, minutes, wholesaleCostPerMinute: wholesale, expectedUsagePct: usage, targetCustomers: Math.min(targetCustomers, country.customers), capex }),
+    })),
+    [price, minutes, wholesale, usage, targetCustomers, capex]
+  );
+  function countryRoi(scenario: ReturnType<typeof calculateScenario>) {
+    return annualRoi(scenario.annualMargin, capex);
+  }
+  const totalMarket = countries.reduce((sum, c) => sum + c.market, 0);
+  const totalCustomers = countries.reduce((sum, c) => sum + c.customers, 0);
+  const totalRevenue = countryResults.reduce((sum, r) => sum + r.scenario.annualRevenue, 0);
+  const totalMargin = countryResults.reduce((sum, r) => sum + r.scenario.annualMargin, 0);
+  const avgMarginPct = totalRevenue > 0 ? (totalMargin / totalRevenue) * 100 : 0;
+  const avgRoi = countryResults.length > 0 ? countryResults.reduce((sum, r) => sum + countryRoi(r.scenario), 0) / countryResults.length : 0;
+  const SENSITIVITY_PRICES = [1, 3, 5, 7, 9, 11, 13, 15, 17, 20];
+  const SENSITIVITY_USAGE = [90, 65, 40, 15];
+  const sensitivityCells = useMemo(
+    () => SENSITIVITY_USAGE.flatMap((sensUsage) => SENSITIVITY_PRICES.map((sensPrice) => {
+      const scenario = calculateScenario({ price: sensPrice, minutes, wholesaleCostPerMinute: wholesale, expectedUsagePct: sensUsage, targetCustomers, capex });
+      const roi = annualRoi(scenario.annualMargin, capex);
+      return { price: sensPrice, usage: sensUsage, roi };
+    })),
+    [minutes, wholesale, targetCustomers, capex]
+  );
+  function roiColor(roi: number) {
+    const t = Math.max(0, Math.min(1, (roi + 50) / 300));
+    return `hsl(${(t * 140).toFixed(0)}, 80%, 45%)`;
+  }
+  const rankedCountries = useMemo(
+    () => [...countryResults]
+      .map((r) => ({ ...r, recommendation: getRecommendation(r.scenario), roi: countryRoi(r.scenario) }))
+      .sort((a, b) => recommendationRank(a.recommendation) - recommendationRank(b.recommendation) || b.roi - a.roi),
+    [countryResults]
+  );
 
   function reset() { setPrice(5); setMinutes(100); setUsage(42); setWholesale(0.018); setTargetCustomers(3100); setCapex(50000); setTab("params"); }
-  function countryMetrics(country: (typeof countries)[number]) {
-    const penetration = country.market > 0 ? (country.customers / country.market) * 100 : 0;
-    const margin = result.unitMargin * Math.max(country.outOfBundle, 1) * 12;
-    const roi = capex > 0 ? (margin / capex) * 100 : 0;
-    return { penetration, margin, roi };
-  }
   function toggleCompare(name: string) {
     setCompareList((list) => (list.includes(name) ? list.filter((n) => n !== name) : [...list, name]));
   }
@@ -60,24 +87,24 @@ export default function Dashboard() {
       subtitle="Analiza el mercado, simula escenarios y decide con datos qué bonos merece la pena desarrollar."
     >
         <section className="kpis">
-          <article><span>MERCADO POTENCIAL</span><strong>7,42 M <em>↑ 2,3%</em></strong><small>vs. actualización anterior</small><Sparkline tone="red" /></article>
-          <article><span>CLIENTES VODAFONE</span><strong>512 K <em>↑ 1,1%</em></strong><small>6,9% penetración media</small><Sparkline tone="purple" /></article>
-          <article><span>INGRESO POTENCIAL ANUAL</span><strong>€41,3 M <em>↑ 6,8%</em></strong><small>Con todos los bonos</small><Sparkline tone="cyan" /></article>
-          <article><span>MARGEN POTENCIAL ANUAL</span><strong>€24,8 M <em>↑ 4,2%</em></strong><small>60,1% margen promedio</small><Sparkline tone="green" /></article>
-          <article><span>ROI PROMEDIO</span><strong className="purple-value">152% <em>↑ 12 pp</em></strong><small>Retorno sobre inversión</small><Sparkline tone="purple" /></article>
+          <article><span>MERCADO POTENCIAL</span><strong>{number(totalMarket)}</strong><small>{countries.length} países en cartera</small><Sparkline tone="red" /></article>
+          <article><span>CLIENTES VODAFONE</span><strong>{number(totalCustomers)}</strong><small>{pct(totalMarket > 0 ? (totalCustomers / totalMarket) * 100 : 0)} penetración media</small><Sparkline tone="purple" /></article>
+          <article><span>INGRESO POTENCIAL ANUAL</span><strong>{money(totalRevenue)}</strong><small>Con el escenario actual del simulador</small><Sparkline tone="cyan" /></article>
+          <article><span>MARGEN POTENCIAL ANUAL</span><strong>{money(totalMargin)}</strong><small>{pct(avgMarginPct)} margen promedio</small><Sparkline tone="green" /></article>
+          <article><span>ROI PROMEDIO</span><strong className="purple-value">{avgRoi.toFixed(0)}%</strong><small>Retorno sobre inversión</small><Sparkline tone="purple" /></article>
         </section>
 
         <div className="grid-main">
           <section className="panel portfolio">
-            <div className="panel-toolbar"><div className="section-title"><h2>PORTFOLIO <span>· TOP PAÍSES POR POTENCIAL</span></h2><i>ⓘ</i></div><div className="toolbar-actions"><div className="segmented"><button className="active">Top 5</button><button>Todos los países</button></div><button className="map-button">◉ Ver en mapa</button></div></div>
+            <div className="panel-toolbar"><div className="section-title"><h2>PORTFOLIO <span>· TOP PAÍSES POR POTENCIAL</span></h2><i>ⓘ</i></div><div className="toolbar-actions"><div className="segmented"><button className="active">Top 5</button><Link href="/portfolio">Todos los países</Link></div><button className="map-button" disabled title="Próximamente">◉ Ver en mapa</button></div></div>
             <div className="country-grid">
-              {countries.map((country) => {
-                const { penetration, margin, roi } = countryMetrics(country);
+              {countryResults.map(({ country, penetration, scenario }) => {
+                const roi = countryRoi(scenario);
                 const active = country.name === selectedCountry;
                 return <article key={country.name} className={`country-card ${active ? "selected" : ""}`}>
                   <div className="country-card-head"><span className="flag-box">{country.flag}</span><div><h3>{country.name}</h3><div className="stars">{"★".repeat(country.rating)}<span>{"★".repeat(5-country.rating)}</span></div></div><b className={`score score-${country.priority.toLowerCase()}`}>{country.score}</b></div>
                   <div className="metric-row"><div><span>MERCADO POTENCIAL</span><b>{number(country.market)}</b></div><div><span>CLIENTES VODAFONE</span><b>{number(country.customers)}</b></div><div><span>PENETRACIÓN</span><b>{pct(penetration)}</b></div></div>
-                  <div className="metric-row bottom"><div><span>INGRESO ANUAL</span><b>{money(margin / .6)}</b></div><div><span>MARGEN ANUAL</span><b>{money(margin)}</b></div><div><span>ROI</span><b>{roi.toFixed(0)}%</b></div></div>
+                  <div className="metric-row bottom"><div><span>INGRESO ANUAL</span><b>{money(scenario.annualRevenue)}</b></div><div><span>MARGEN ANUAL</span><b>{money(scenario.annualMargin)}</b></div><div><span>ROI</span><b>{roi.toFixed(0)}%</b></div></div>
                   <button onClick={() => setSelectedCountry(country.name)} className={active ? "primary-card" : "ghost-card"}>Analizar país <span>→</span></button>
                 </article>;
               })}
@@ -121,22 +148,50 @@ export default function Dashboard() {
                   <tbody>
                     <tr><td>Mercado potencial</td>{compareList.map((name) => <td key={name}>{number(countries.find((c) => c.name === name)!.market)}</td>)}</tr>
                     <tr><td>Clientes Vodafone</td>{compareList.map((name) => <td key={name}>{number(countries.find((c) => c.name === name)!.customers)}</td>)}</tr>
-                    <tr><td>Penetración</td>{compareList.map((name) => <td key={name}>{pct(countryMetrics(countries.find((c) => c.name === name)!).penetration)}</td>)}</tr>
-                    <tr><td>Ingreso anual</td>{compareList.map((name) => <td key={name}>{money(countryMetrics(countries.find((c) => c.name === name)!).margin / .6)}</td>)}</tr>
-                    <tr><td>Margen anual</td>{compareList.map((name) => <td key={name}>{money(countryMetrics(countries.find((c) => c.name === name)!).margin)}</td>)}</tr>
-                    <tr><td>ROI</td>{compareList.map((name) => <td key={name}>{countryMetrics(countries.find((c) => c.name === name)!).roi.toFixed(0)}%</td>)}</tr>
+                    <tr><td>Penetración</td>{compareList.map((name) => <td key={name}>{pct(countryResults.find((r) => r.country.name === name)!.penetration)}</td>)}</tr>
+                    <tr><td>Ingreso anual</td>{compareList.map((name) => <td key={name}>{money(countryResults.find((r) => r.country.name === name)!.scenario.annualRevenue)}</td>)}</tr>
+                    <tr><td>Margen anual</td>{compareList.map((name) => <td key={name}>{money(countryResults.find((r) => r.country.name === name)!.scenario.annualMargin)}</td>)}</tr>
+                    <tr><td>ROI</td>{compareList.map((name) => <td key={name}>{countryRoi(countryResults.find((r) => r.country.name === name)!.scenario).toFixed(0)}%</td>)}</tr>
                     <tr><td>Score</td>{compareList.map((name) => <td key={name}>{countries.find((c) => c.name === name)!.score}</td>)}</tr>
                     <tr><td>Prioridad</td>{compareList.map((name) => <td key={name}>{countries.find((c) => c.name === name)!.priority}</td>)}</tr>
                   </tbody>
                 </table>
               </div>
             )}
-            <div className="portfolio-insight"><span>▥</span><p><b>{selected.name}</b> es el país seleccionado para el análisis. ROI estimado <b>{capex > 0 ? ((result.annualMargin / capex) * 100).toFixed(0) : "0"}%</b> con recuperación de la inversión en <b>{result.paybackMonths?.toFixed(1) ?? "N/A"} meses</b>.</p><button>Ver análisis completo →</button></div>
+            <div className="portfolio-insight"><span>▥</span><p><b>{selected.name}</b> es el país seleccionado para el análisis. ROI estimado <b>{annualRoi(result.annualMargin, capex).toFixed(0)}%</b> con recuperación de la inversión en <b>{result.paybackMonths?.toFixed(1) ?? "N/A"} meses</b>.</p><Link href={`/business-case?country=${encodeURIComponent(selected.name)}`}>Ver análisis completo →</Link></div>
 
             <div className="lower-grid">
-              <article className="mini-panel sensitivity"><div className="mini-head"><h3>ANÁLISIS DE SENSIBILIDAD</h3><span>ⓘ</span></div><p>ROI según precio y utilización</p><div className="heat-wrap"><span className="axis-y">Utilización</span><div className="heatmap">{Array.from({length: 40}).map((_,i)=><i key={i} style={{"--cell": `${i}`} as React.CSSProperties}/>)}</div><div className="heat-legend"><span>Alto</span><b/><span>Bajo</span></div></div><div className="axis-x"><span>2€</span><span>5€</span><span>10€</span><span>15€</span><span>20€</span></div></article>
-              <article className="mini-panel"><div className="mini-head"><h3>ESCENARIOS GUARDADOS</h3><button>Ver todos →</button></div><ul className="compact-list"><li><div><b>Escenario base 5€</b><span>05/08/2026 18:55</span></div><em className="ok">Activo</em></li><li><div><b>Agresivo minutos 200</b><span>05/08/2026 17:42</span></div><em className="warn">Comparar</em></li><li><div><b>Conservador precio 7€</b><span>05/08/2026 16:31</span></div><em className="warn">Comparar</em></li></ul></article>
-              <article className="mini-panel"><div className="mini-head"><h3>PRÓXIMAS DECISIONES</h3></div><ul className="decision-list"><li><span>☑</span>Validar supuestos wholesale<em>Pendiente</em></li><li><span>☑</span>Revisar competencia local<em>Pendiente</em></li><li><span>☑</span>Validar capacidad técnica<em className="done">Hecho</em></li><li><span>☑</span>Aprobación comité productos<em>Pendiente</em></li></ul><button className="wide-ghost">Ver plan completo →</button></article>
+              <article className="mini-panel sensitivity">
+                <div className="mini-head"><h3>ANÁLISIS DE SENSIBILIDAD</h3><span>ⓘ</span></div>
+                <p>ROI según precio y utilización, con el resto de parámetros del simulador fijos</p>
+                <div className="heat-wrap">
+                  <span className="axis-y">Utilización</span>
+                  <div className="heatmap">{sensitivityCells.map((cell) => <i key={`${cell.price}-${cell.usage}`} style={{ background: roiColor(cell.roi) }} title={`${cell.price}€ · ${cell.usage}% utilización → ROI ${cell.roi.toFixed(0)}%`} />)}</div>
+                  <div className="heat-legend"><span>Alto</span><b/><span>Bajo</span></div>
+                </div>
+                <div className="axis-x">{SENSITIVITY_PRICES.filter((_, i) => i % 2 === 0).map((p) => <span key={p}>{p}€</span>)}</div>
+              </article>
+              <article className="mini-panel">
+                <div className="mini-head"><h3>ESCENARIOS GUARDADOS</h3><Link href="/escenarios">Ver todos →</Link></div>
+                {savedScenarios.length === 0 ? (
+                  <p>Todavía no has guardado ningún escenario. Ajusta el simulador y guárdalo desde <Link href="/escenarios">Escenarios</Link>.</p>
+                ) : (
+                  <ul className="compact-list">
+                    {savedScenarios.slice(0, 3).map((s) => (
+                      <li key={s.id}><div><b>{s.name}</b><span>{relativeDate(s.savedAt)}</span></div><em className="warn">{s.price}€</em></li>
+                    ))}
+                  </ul>
+                )}
+              </article>
+              <article className="mini-panel">
+                <div className="mini-head"><h3>RECOMENDACIÓN POR PAÍS</h3></div>
+                <ul className="decision-list">
+                  {rankedCountries.slice(0, 4).map((r) => (
+                    <li key={r.country.name}><span>{r.country.flag}</span>{r.country.name}<em className={r.recommendation === "PRIORIDAD ALTA" ? "done" : undefined}>{r.recommendation}</em></li>
+                  ))}
+                </ul>
+                <Link href="/decision-lab" className="wide-ghost">Ver ranking completo →</Link>
+              </article>
             </div>
           </section>
 
