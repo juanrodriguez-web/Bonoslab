@@ -42,6 +42,40 @@ export type ScenarioResult = {
  * - Negative margin: returns null for break-even and payback
  * - Zero price: marginPct defaults to 0
  */
+export type Recommendation = "PRIORIDAD ALTA" | "MANTENER EN ANÁLISIS" | "BACKLOG" | "NO DESARROLLAR";
+
+/**
+ * Trazable, rule-based recommendation for a scenario result -- no ML/AI involved.
+ *
+ * Rules (matching the original BonosLab v1 spec):
+ * - unitMargin <= 0                                        -> NO DESARROLLAR
+ * - payback <= 12 months AND marginPct >= 45%               -> PRIORIDAD ALTA
+ * - payback <= 24 months                                    -> MANTENER EN ANÁLISIS
+ * - anything else (margin low, ROI insufficient, payback > 24) -> BACKLOG
+ */
+/**
+ * ROI anual = ((margen_anual - CAPEX) / CAPEX) x 100
+ * (return on investment, not a plain margin/capex ratio -- the CAPEX itself
+ * must be netted out first, or a break-even year would show 100% instead of 0%.)
+ */
+export function annualRoi(annualMargin: number, capex: number): number {
+  return capex > 0 ? ((annualMargin - capex) / capex) * 100 : 0;
+}
+
+export function getRecommendation(result: ScenarioResult): Recommendation {
+  if (result.unitMargin <= 0) return "NO DESARROLLAR";
+  if (result.paybackMonths !== null && result.paybackMonths <= 12 && result.marginPct >= 45) return "PRIORIDAD ALTA";
+  if (result.paybackMonths !== null && result.paybackMonths <= 24) return "MANTENER EN ANÁLISIS";
+  return "BACKLOG";
+}
+
+/** Best-to-worst order, for sorting a list of scenarios/countries by recommendation. */
+export const RECOMMENDATION_ORDER: Recommendation[] = ["PRIORIDAD ALTA", "MANTENER EN ANÁLISIS", "BACKLOG", "NO DESARROLLAR"];
+
+export function recommendationRank(recommendation: Recommendation): number {
+  return RECOMMENDATION_ORDER.indexOf(recommendation);
+}
+
 export function calculateScenario(input: ScenarioInput): ScenarioResult {
   const expectedMinutes = input.minutes * (input.expectedUsagePct / 100);
   const variableCost = expectedMinutes * input.wholesaleCostPerMinute;
